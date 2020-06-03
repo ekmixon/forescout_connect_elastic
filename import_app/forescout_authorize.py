@@ -2,20 +2,16 @@ import json
 import urllib.request
 
 # CLI Testing
-try:
-    params
-    # running in eyeExtend connect
-except: 
-    import sys
-    import ssl
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    params = {
-        "connect_elasticsearch_forescout_url": sys.argv[1],
-        "connect_elasticsearch_forescout_username": sys.argv[2],
-        "connect_elasticsearch_forescout_password": sys.argv[3]
-    }
+import sys
+import ssl
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+params = {
+    "connect_elasticsearch_forescout_url": "https://fsctlab.corp.davsol.net",
+    "connect_elasticsearch_forescout_username": "demo",
+    "connect_elasticsearch_forescout_password": "demo"
+}
 # END CLI TESTING
 
 # CONFIGURATION
