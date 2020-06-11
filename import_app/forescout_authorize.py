@@ -2,7 +2,7 @@ import json
 import urllib.request
 
 # CLI Testing
-import sys
+""" import sys
 import ssl
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -11,7 +11,7 @@ params = {
     "connect_elasticsearch_forescout_url": "https://fsctlab.corp.davsol.net",
     "connect_elasticsearch_forescout_username": "demo",
     "connect_elasticsearch_forescout_password": "demo"
-}
+} """
 # END CLI TESTING
 
 # CONFIGURATION
@@ -32,10 +32,10 @@ try:
     resp = urllib.request.urlopen(request, context=ssl_context)
     # If we are authorized return to EyeExtend Connect
     if resp.getcode() == 200:
+        logging.info("Received new Forescout OIM Web API JWT")
         response["token"] = resp.read().decode('utf-8')
     else:
+        logging.error("Failed to get new Forescout OIM Web API JWT")
         response["token"] = ""
 except:
     response["token"] = ""
-
-print(response)
