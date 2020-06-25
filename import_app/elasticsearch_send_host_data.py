@@ -3,48 +3,59 @@ import urllib.request
 import base64
 import re
 import fnmatch
+from datetime import datetime
 
+######################################################################################################################################################################################################################################################
+######################################################################################################################################################################################################################################################
 # CLI Testing
-import logging
-import sys
-import ssl
-logging.getLogger().setLevel(logging.DEBUG)
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
-params = {
-    "connect_elasticsearch_forescout_url": "https://fsctlab.corp.davsol.net",
-    "ip": "10.1.20.5",
-    "connect_elasticsearch_forescout_username": "demo",
-    "connect_elasticsearch_forescout_password": "demo",
-    "connect_elasticsearch_send_host_data_allfields": "false",
-    "connect_elasticsearch_send_host_data_hostfields": "in-group(in-group),script_result.138eb8efdf5a14a4897bef3f75732d0d(C365softCerts),script_result.dd44b524158d83cf07b55e56280e0021(C365nonSmartCardEnabledUsers),nessus_last_scan(nessus_last_scan),nessus_scan_results(nessus_scan_results),scap::*::oval_check_result(scap::*::oval_check_result),hostname(hostname),nbthost(nbthost)",
-    "connect_elasticsearch_url": "http://10.1.20.125:9200",
-    "connect_elasticsearch_index": "forescout",
-    "connect_elasticsearch_username": "elastic",
-    "connect_elasticsearch_password": "elastic",
-}
+######################################################################################################################################################################################################################################################
+######################################################################################################################################################################################################################################################
 
-# Making an API call to get the Forescout JWT token
-headers = {"Content-Type": "application/x-www-form-urlencoded"}
-data = {"username": params["connect_elasticsearch_forescout_username"], "password": params["connect_elasticsearch_forescout_password"]}
-request = urllib.request.Request(params["connect_elasticsearch_forescout_url"] + "/api/login", headers=headers, data=bytes(urllib.parse.urlencode(data), encoding="utf-8"))
+# import logging
+# import sys
+# import ssl
+# logging.getLogger().setLevel(logging.DEBUG)
+# ssl_context = ssl.create_default_context()
+# ssl_context.check_hostname = False
+# ssl_context.verify_mode = ssl.CERT_NONE
+# params = {
+#     "connect_elasticsearch_forescout_url": "https://fsctlab.corp.davsol.net",
+#     "ip": "10.1.20.5",
+#     "connect_elasticsearch_forescout_username": "demo",
+#     "connect_elasticsearch_forescout_password": "demo",
+#     "connect_elasticsearch_send_host_data_allfields": "false",
+#     "connect_elasticsearch_send_host_data_hostfields": "in-group(in-group),script_result.138eb8efdf5a14a4897bef3f75732d0d(C365softCerts),script_result.dd44b524158d83cf07b55e56280e0021(C365nonSmartCardEnabledUsers),nessus_last_scan(nessus_last_scan),nessus_scan_results(nessus_scan_results),scap::*::oval_check_result(scap::*::oval_check_result),hostname(hostname),nbthost(nbthost),segment_path(segment_path),online(online),nbtdomain(nbtdomain),dhcp_hostname(dhcp_hostname),user(user),va_netfunc(va_netfunc),nessus_scan_status(nessus_scan_status)",
+#     "connect_elasticsearch_url": "http://10.1.20.125:9200",
+#     "connect_elasticsearch_index": "forescout",
+#     "connect_elasticsearch_username": "elastic",
+#     "connect_elasticsearch_password": "elastic",
+# }
 
-# To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
-response = {} # respones to forecout EyeExtend Connect
-try:
-    # Make API request
-    resp = urllib.request.urlopen(request, context=ssl_context)
-    # If we are authorized return to EyeExtend Connect
-    if resp.getcode() == 200:
-        logging.info("Received new Forescout OIM Web API JWT")
-        params["connect_authorization_token"] = resp.read().decode('utf-8')
-    else:
-        logging.error("Failed to get new Forescout OIM Web API JWT")
-        params["connect_authorization_token"] = ""
-except:
-    params["connect_authorization_token"] = ""
+# # Making an API call to get the Forescout JWT token
+# headers = {"Content-Type": "application/x-www-form-urlencoded"}
+# data = {"username": params["connect_elasticsearch_forescout_username"], "password": params["connect_elasticsearch_forescout_password"]}
+# request = urllib.request.Request(params["connect_elasticsearch_forescout_url"] + "/api/login", headers=headers, data=bytes(urllib.parse.urlencode(data), encoding="utf-8"))
+
+# # To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
+# response = {} # respones to forecout EyeExtend Connect
+# try:
+#     # Make API request
+#     resp = urllib.request.urlopen(request, context=ssl_context)
+#     # If we are authorized return to EyeExtend Connect
+#     if resp.getcode() == 200:
+#         logging.info("Received new Forescout OIM Web API JWT")
+#         params["connect_authorization_token"] = resp.read().decode('utf-8')
+#     else:
+#         logging.error("Failed to get new Forescout OIM Web API JWT")
+#         params["connect_authorization_token"] = ""
+# except:
+#     params["connect_authorization_token"] = ""
+
+######################################################################################################################################################################################################################################################
+######################################################################################################################################################################################################################################################
 # END CLI TESTING
+######################################################################################################################################################################################################################################################
+######################################################################################################################################################################################################################################################
 
 # Hold response to Forescout EyeExtend Connect
 # Like the action response, the response object must have a "succeeded" field to denote success. It can also optionally have
@@ -89,6 +100,7 @@ try:
             elastic_payload = host_data["host"]
         else: 
             # Add IP and mac field to data and setup for fields data
+            elastic_payload["time"] = datetime.now().isoformat()
             elastic_payload["ip"] = host_data["host"]["ip"]
             elastic_payload["mac"] = host_data["host"]["mac"]
             elastic_payload["fields"] = {}
@@ -107,7 +119,7 @@ try:
                     # Make sure only 1 wildcard character entered
                     if field_name.count("*") > 1 or alias_name.count("*") > 1:
                         raise Exception("Only 1 wildcard (*) character allowed in a field or alias specification")
-                    else if alias_name.count("*") < 1:
+                    elif alias_name.count("*") < 1:
                         raise Exception("Wildcard (*) character not expressed in alias field -- must be provided to preserve uniqueness of findings in output.")
                     else:
                         # convert wildcard to regex and make a token for what the wildcard matches
@@ -130,7 +142,7 @@ try:
             "Content-Type": "application/json",
             'Authorization': 'Basic %s' % encoded_credentials.decode("ascii")
         }
-        elastic_request = urllib.request.Request(elastic_url + "/" + elastic_index + "/_doc/" + str(host_data["host"]["id"]), headers=elastic_headers, data=bytes(json.dumps(elastic_payload), encoding="utf-8"))
+        elastic_request = urllib.request.Request(elastic_url + "/" + elastic_index + "/_doc/"), headers=elastic_headers, data=bytes(json.dumps(elastic_payload), encoding="utf-8"))
 
         # Make API request to elasticsearch API to put document
         elastic_resp = urllib.request.urlopen(elastic_request, context=ssl_context) # To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
@@ -142,6 +154,7 @@ try:
             logging.info("Sent host data to Elasticsearch succesfully!")
             response["succeeded"] = True
             response["result_msg"] = "Successfully sent data!"
+            response["cookie"] = elastic_resp_parse["_id"]
         else:
             logging.error("Failed to send host data to Elasticsearch!")
             logging.debug(elastic_resp.read().decode('utf-8'))
