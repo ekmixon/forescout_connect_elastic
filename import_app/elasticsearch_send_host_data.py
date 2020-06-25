@@ -142,7 +142,7 @@ try:
             "Content-Type": "application/json",
             'Authorization': 'Basic %s' % encoded_credentials.decode("ascii")
         }
-        elastic_request = urllib.request.Request(elastic_url + "/" + elastic_index + "/_doc/"), headers=elastic_headers, data=bytes(json.dumps(elastic_payload), encoding="utf-8"))
+        elastic_request = urllib.request.Request(elastic_url + "/" + elastic_index + "/_doc/", headers=elastic_headers, data=bytes(json.dumps(elastic_payload), encoding="utf-8"))
 
         # Make API request to elasticsearch API to put document
         elastic_resp = urllib.request.urlopen(elastic_request, context=ssl_context) # To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
