@@ -139,7 +139,7 @@ try:
                         try:
                             elastic_payload["fields"][alias_name] = json.loads(host_data["host"]["fields"][field_name])
                         except ValueError as e:
-                            elastic_payload["fields"][alias_n]me] = host_data["host"]["fields"][field_name]
+                            elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
 
         # Prepare API request to elastic
         logging.debug(json.dumps(elastic_payload))
