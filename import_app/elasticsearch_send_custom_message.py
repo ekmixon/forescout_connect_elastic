@@ -1,8 +1,6 @@
 import json
 import urllib.request
 import base64
-import re
-import fnmatch
 from datetime import datetime
 
 ######################################################################################################################################################################################################################################################
@@ -19,15 +17,21 @@ from datetime import datetime
 # ssl_context.check_hostname = False
 # ssl_context.verify_mode = ssl.CERT_NONE
 # params = {
+#     "ip": "10.1.40.53",
+
 #     "connect_elasticsearch_forescout_url": "https://forescout.lab.davsol.net",
-#     "ip": "10.1.20.5",
 #     "connect_elasticsearch_forescout_username": "demo",
 #     "connect_elasticsearch_forescout_password": "demo",
-#     "connect_elasticsearch_send_host_data_allfields": "false",
-#     "connect_elasticsearch_send_host_data_hostfields": "in-group(in-group),script_result.138eb8efdf5a14a4897bef3f75732d0d(C365softCerts),script_result.dd44b524158d83cf07b55e56280e0021(C365nonSmartCardEnabledUsers),nessus_last_scan(nessus_last_scan),nessus_scan_results(nessus_scan_results),scap::*::oval_check_result(scap::*::oval_check_result),hostname(hostname),nbthost(nbthost),segment_path(segment_path),online(online),nbtdomain(nbtdomain),dhcp_hostname(dhcp_hostname),user(user),va_netfunc(va_netfunc),nessus_scan_status(nessus_scan_status)",
+
+#     "connect_elasticsearch_send_custom_message_index_override": "",
+#     "connect_elasticsearch_send_custom_message_type": "policy_status",
+#     "connect_elasticsearch_send_custom_message_custom_field1": "C365 - CND - 30 Day Vuln Scan Compliance",
+#     "connect_elasticsearch_send_custom_message_custom_field2": "Non-Compliant",
+#     "connect_elasticsearch_send_custom_message_custom_field3": "",
+#     "connect_elasticsearch_send_custom_message_body": "",
+
 #     "connect_elasticsearch_url": "https://elastic.davsol.net",
 #     "connect_elasticsearch_index": "forescout",
-#     "connect_elasticsearch_send_host_data_index_override": "",
 #     "connect_elasticsearch_username": "elastic",
 #     "connect_elasticsearch_password": "elastic",
 # }
@@ -69,85 +73,46 @@ forescout_jwt_token = params["connect_authorization_token"]
 
 # Get Elasticsearch API Details (To send data to)
 elastic_url = params["connect_elasticsearch_url"]
-elastic_index = params["connect_elasticsearch_send_host_data_index_override"] or params["connect_elasticsearch_index"]
+elastic_index = params["connect_elasticsearch_send_custom_message_index_override"] or params["connect_elasticsearch_index"]
 elastic_username = params["connect_elasticsearch_username"]
 elastic_password = params["connect_elasticsearch_password"]
 
 # Get parameter details from action dialog
 host_ip = params["ip"] # Host IP address
-send_all_data = params["connect_elasticsearch_send_host_data_allfields"] == "true" # If all data should be included from host
-specified_data = params["connect_elasticsearch_send_host_data_hostfields"] # or specific parsed version
+msg_type = params["connect_elasticsearch_send_custom_message_type"]
+field1 = params["connect_elasticsearch_send_custom_message_custom_field1"]
+field2 = params["connect_elasticsearch_send_custom_message_custom_field2"]
+field3 = params["connect_elasticsearch_send_custom_message_custom_field3"]
+body = params["connect_elasticsearch_send_custom_message_body"]
 host_data = {} # don't have host data yet
 
 # Create request to get host data from Forescout
 forescout_headers = {"Authorization": forescout_jwt_token}
 forescout_request = urllib.request.Request(forescout_url + "/api/hosts/ip/" + host_ip, headers=forescout_headers)
 
-logging.debug("Preparing to get host data from Forescout Web API")
+logging.debug("connect_elasticsearch_send_custom_message: Preparing to get host data from Forescout Web API")
 
 try:
     # Make API request to Forescout Web API For host
     forescout_resp = urllib.request.urlopen(forescout_request, context=ssl_context) # To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
     if forescout_resp.getcode() == 200:
-        logging.debug("Got data from Forescout Web API")
+        logging.debug("connect_elasticsearch_send_custom_message: Got data from Forescout Web API")
         # Load response data
         host_data = json.loads(forescout_resp.read().decode('utf-8'))
 
         # Process host data with respect to EyeExtend Connect Send Data action specification
-        logging.debug("Preparing elasticsearch payload")
-        elastic_payload = {}
-        if(send_all_data):
-            # If send all is checked, we send all, not need for extra formatting
-            elastic_payload = host_data["host"]
-        else: 
-            # Add IP and mac field to data and setup for fields data
-            elastic_payload["time"] = datetime.now().isoformat()
-            elastic_payload["ip"] = host_data["host"]["ip"]
-            elastic_payload["mac"] = host_data["host"]["mac"]
-            elastic_payload["id"] = host_data["host"]["id"]
-            elastic_payload["fields"] = {}
-
-            # Take user input and extract requested fields and alias name
-            specified_fields = specified_data.split(",") # split the stirng format at commas
-
-            # Take each field specification and get the data form the host_data
-            for field_token in specified_fields:
-                re_match = re.match("(?P<field_name>.*)\((?P<alias_name>.*)\)", field_token) # Regex to break up the format
-                field_name = re_match.group('field_name')
-                alias_name = re_match.group('alias_name')
-
-                # Check if there is a wildcard character in the field speccification
-                if '*' in field_name:
-                    # Make sure only 1 wildcard character entered
-                    if field_name.count("*") > 1 or alias_name.count("*") > 1:
-                        raise Exception("Only 1 wildcard (*) character allowed in a field or alias specification")
-                    elif alias_name.count("*") < 1:
-                        raise Exception("Wildcard (*) character not expressed in alias field -- must be provided to preserve uniqueness of findings in output.")
-                    else:
-                        # convert wildcard to regex and make a token for what the wildcard matches
-                        dynamic_match_re = field_name.replace("*", "(?P<token>.*)")
-                        # search through all keys looking for any matches
-                        for key in host_data["host"]["fields"].keys():
-                            match = re.match(dynamic_match_re, key)
-                            if match:
-                                elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = host_data["host"]["fields"][key]
-                else:
-                    # Normal find key value and put in payload
-                    if field_name in host_data["host"]["fields"]:
-                        #if field name starts with script_result, it may be JSON data we can parse before sending over
-                        if "script_result" in field_name:
-                            try:
-                                #logging.debug("Trying parse script_result value as JSON: {},{}".format(field_name, alias_name))
-                                elastic_payload["fields"][alias_name] = {
-                                    "timestamp": host_data["host"]["fields"][field_name]["timestamp"],
-                                    "value": json.loads(host_data["host"]["fields"][field_name]["value"])
-                                }
-                                logging.debug("Parsed script_result value as JSON: {},{}".format(field_name, alias_name))
-                            except Exception as e:
-                                elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
-                                logging.debug("Unable to parse script_result value as JSON: {},{}".format(field_name, alias_name))
-                        else:
-                            elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
+        logging.debug("connect_elasticsearch_send_custom_message: Preparing elasticsearch payload")
+        elastic_payload = {
+            "time": datetime.now().isoformat(),
+            "ip": host_data["host"]["ip"],
+            "mac": host_data["host"]["mac"],
+            "id": host_data["host"]["id"],
+            "msg_type": msg_type,
+            "custom_field1": field1,
+            "custom_field2": field2,
+            "custom_field3": field3,
+            "body": body
+        }
 
         # Prepare API request to elastic
         logging.debug(json.dumps(elastic_payload))
@@ -166,20 +131,20 @@ try:
         
         # Check response from elasticsearch
         if "result" in elastic_resp_parse and (elastic_resp_parse["result"] == "created" or elastic_resp_parse["result"] == "updated"):
-            logging.info("Sent host data to Elasticsearch succesfully!")
+            logging.info("connect_elasticsearch_send_custom_message: Sent host data to Elasticsearch succesfully!")
             response["succeeded"] = True
             response["result_msg"] = "Successfully sent data!"
             response["cookie"] = elastic_resp_parse["_id"]
         else:
-            logging.error("Failed to send host data to Elasticsearch!")
+            logging.error("connect_elasticsearch_send_custom_message: Failed to send host data to Elasticsearch!")
             logging.debug(elastic_resp.read().decode('utf-8'))
             response["succeeded"] = False
             response["result_msg"] = "Failed API request to elasticsearch!"
     else:
-        logging.error("Failed API Request to Forescout to get host data!")
+        logging.error("connect_elasticsearch_send_custom_message: Failed API Request to Forescout to get host data!")
         response["succeeded"] = False
         response["result_msg"] = "Failed API request to Forescout Web API server!"
 except Exception as e:
-    logging.error("Exception: {}".format(e))
+    logging.error("connect_elasticsearch_send_custom_message exception: {}".format(e))
     response["succeeded"] = False
     response["result_msg"] = "Exception! Something went wrong! Couldn't talk to Forescout, action parsing failed, or message to Elastic failed. See the debug logs for more info."
