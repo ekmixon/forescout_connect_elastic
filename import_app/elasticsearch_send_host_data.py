@@ -103,6 +103,7 @@ try:
             elastic_payload["time"] = datetime.now().isoformat()
             elastic_payload["ip"] = host_data["host"]["ip"]
             elastic_payload["mac"] = host_data["host"]["mac"]
+            elastic_payload["id"] = host_data["host"]["id"]
             elastic_payload["fields"] = {}
 
             # Take user input and extract requested fields and alias name
@@ -128,11 +129,17 @@ try:
                         for key in host_data["host"]["fields"].keys():
                             match = re.match(dynamic_match_re, key)
                             if match:
-                                elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = host_data["host"]["fields"][key]
+                                try:
+                                    elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = json.loads(host_data["host"]["fields"][key])
+                                except ValueError as e:
+                                    elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = host_data["host"]["fields"][key]
                 else:
                     # Normal find key value and put in payload
                     if field_name in host_data["host"]["fields"]:
-                        elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
+                        try:
+                            elastic_payload["fields"][alias_name] = json.loads(host_data["host"]["fields"][field_name])
+                        except ValueError as e:
+                            elastic_payload["fields"][alias_n]me] = host_data["host"]["fields"][field_name]
 
         # Prepare API request to elastic
         logging.debug(json.dumps(elastic_payload))
