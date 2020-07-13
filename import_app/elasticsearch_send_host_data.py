@@ -19,13 +19,13 @@ from datetime import datetime
 # ssl_context.check_hostname = False
 # ssl_context.verify_mode = ssl.CERT_NONE
 # params = {
-#     "connect_elasticsearch_forescout_url": "https://fsctlab.corp.davsol.net",
+#     "connect_elasticsearch_forescout_url": "https://forescout.lab.davsol.net",
 #     "ip": "10.1.20.5",
 #     "connect_elasticsearch_forescout_username": "demo",
 #     "connect_elasticsearch_forescout_password": "demo",
 #     "connect_elasticsearch_send_host_data_allfields": "false",
 #     "connect_elasticsearch_send_host_data_hostfields": "in-group(in-group),script_result.138eb8efdf5a14a4897bef3f75732d0d(C365softCerts),script_result.dd44b524158d83cf07b55e56280e0021(C365nonSmartCardEnabledUsers),nessus_last_scan(nessus_last_scan),nessus_scan_results(nessus_scan_results),scap::*::oval_check_result(scap::*::oval_check_result),hostname(hostname),nbthost(nbthost),segment_path(segment_path),online(online),nbtdomain(nbtdomain),dhcp_hostname(dhcp_hostname),user(user),va_netfunc(va_netfunc),nessus_scan_status(nessus_scan_status)",
-#     "connect_elasticsearch_url": "http://10.1.20.125:9200",
+#     "connect_elasticsearch_url": "https://elastic.davsol.net",
 #     "connect_elasticsearch_index": "forescout",
 #     "connect_elasticsearch_username": "elastic",
 #     "connect_elasticsearch_password": "elastic",
@@ -129,16 +129,23 @@ try:
                         for key in host_data["host"]["fields"].keys():
                             match = re.match(dynamic_match_re, key)
                             if match:
-                                try:
-                                    elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = json.loads(host_data["host"]["fields"][key])
-                                except ValueError as e:
-                                    elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = host_data["host"]["fields"][key]
+                                elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = host_data["host"]["fields"][key]
                 else:
                     # Normal find key value and put in payload
                     if field_name in host_data["host"]["fields"]:
-                        try:
-                            elastic_payload["fields"][alias_name] = json.loads(host_data["host"]["fields"][field_name])
-                        except ValueError as e:
+                        #if field name starts with script_result, it may be JSON data we can parse before sending over
+                        if "script_result" in field_name:
+                            try:
+                                #logging.debug("Trying parse script_result value as JSON: {},{}".format(field_name, alias_name))
+                                elastic_payload["fields"][alias_name] = {
+                                    "timestamp": host_data["host"]["fields"][field_name]["timestamp"],
+                                    "value": json.loads(host_data["host"]["fields"][field_name]["value"])
+                                }
+                                logging.debug("Parsed script_result value as JSON: {},{}".format(field_name, alias_name))
+                            except Exception as e:
+                                elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
+                                logging.debug("Unable to parse script_result value as JSON: {},{}".format(field_name, alias_name))
+                        else:
                             elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
 
         # Prepare API request to elastic
@@ -172,6 +179,6 @@ try:
         response["succeeded"] = False
         response["result_msg"] = "Failed API request to Forescout Web API server!"
 except Exception as e:
-    logging.error(e)
+    logging.error("Exception: {}".format(e))
     response["succeeded"] = False
     response["result_msg"] = "Exception! Something went wrong! Couldn't talk to Forescout, action parsing failed, or message to Elastic failed. See the debug logs for more info."
