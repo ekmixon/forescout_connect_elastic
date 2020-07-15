@@ -29,8 +29,8 @@ from datetime import datetime
 #     "connect_elasticsearch_send_custom_message_type": "policy_status",
 #     "connect_elasticsearch_send_custom_message_custom_field1": "C365 - CND - 30 Day Vuln Scan Compliance",
 #     "connect_elasticsearch_send_custom_message_custom_field2": "Non-Compliant",
-#     "connect_elasticsearch_send_custom_message_custom_field3": "null",
-#     "connect_elasticsearch_send_custom_message_body": "null",
+#     "connect_elasticsearch_send_custom_message_custom_field3": " ",
+#     "connect_elasticsearch_send_custom_message_body": " ",
 #     "connect_elasticsearch_send_custom_message_hostfields": "nessus_scan_status(nessus_scan_status)",
 
 #     "connect_elasticsearch_url": "https://elastic.davsol.net",
@@ -77,7 +77,7 @@ forescout_jwt_token = params["connect_authorization_token"]
 # Get Elasticsearch API Details (To send data to)
 elastic_url = params["connect_elasticsearch_url"]
 elastic_index = params["connect_elasticsearch_index"]
-if params["connect_elasticsearch_send_custom_message_index_override"] != "null":
+if params["connect_elasticsearch_send_custom_message_index_override"] != " ":
     elastic_index = params["connect_elasticsearch_send_custom_message_index_override"]
 elastic_username = params["connect_elasticsearch_username"]
 elastic_password = params["connect_elasticsearch_password"]
@@ -85,20 +85,20 @@ elastic_password = params["connect_elasticsearch_password"]
 # Get parameter details from action dialog
 host_ip = params["ip"] # Host IP address
 specified_data = "" # comma seperated list of extra host attributes to send along
-if params["connect_elasticsearch_send_custom_message_hostfields"] != "null":
+if params["connect_elasticsearch_send_custom_message_hostfields"] != " ":
     specified_data = params["connect_elasticsearch_send_custom_message_hostfields"]
 
 # Get fields to send
 msg_type = field1 = field2 = field3 = body = "" # Set all the fields to blank
-if params["connect_elasticsearch_send_custom_message_type"] != "null":
+if params["connect_elasticsearch_send_custom_message_type"] != " ":
     msg_type = params["connect_elasticsearch_send_custom_message_type"]
-if params["connect_elasticsearch_send_custom_message_custom_field1"] != "null":
+if params["connect_elasticsearch_send_custom_message_custom_field1"] != " ":
     field1 = params["connect_elasticsearch_send_custom_message_custom_field1"]
-if params["connect_elasticsearch_send_custom_message_custom_field2"] != "null":
+if params["connect_elasticsearch_send_custom_message_custom_field2"] != " ":
     field2 = params["connect_elasticsearch_send_custom_message_custom_field2"]
-if params["connect_elasticsearch_send_custom_message_custom_field3"] != "null":
+if params["connect_elasticsearch_send_custom_message_custom_field3"] != " ":
     field3 = params["connect_elasticsearch_send_custom_message_custom_field3"]
-if params["connect_elasticsearch_send_custom_message_body"] != "null":
+if params["connect_elasticsearch_send_custom_message_body"] != " ":
     body = params["connect_elasticsearch_send_custom_message_body"]
 
 host_data = {} # don't have host data yet

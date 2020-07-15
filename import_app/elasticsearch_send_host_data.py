@@ -70,7 +70,7 @@ forescout_jwt_token = params["connect_authorization_token"]
 # Get Elasticsearch API Details (To send data to)
 elastic_url = params["connect_elasticsearch_url"]
 elastic_index = params["connect_elasticsearch_index"]
-if params["connect_elasticsearch_send_host_data_index_override"] != "null":
+if params["connect_elasticsearch_send_host_data_index_override"] != " ":
     elastic_index = params["connect_elasticsearch_send_host_data_index_override"]
 elastic_username = params["connect_elasticsearch_username"]
 elastic_password = params["connect_elasticsearch_password"]
