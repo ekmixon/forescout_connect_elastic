@@ -1,6 +1,8 @@
 import json
 import urllib.request
 import base64
+import re
+import fnmatch
 from datetime import datetime
 
 ######################################################################################################################################################################################################################################################
@@ -17,7 +19,7 @@ from datetime import datetime
 # ssl_context.check_hostname = False
 # ssl_context.verify_mode = ssl.CERT_NONE
 # params = {
-#     "ip": "10.1.40.53",
+#     "ip": "10.1.20.5",
 
 #     "connect_elasticsearch_forescout_url": "https://forescout.lab.davsol.net",
 #     "connect_elasticsearch_forescout_username": "demo",
@@ -27,11 +29,12 @@ from datetime import datetime
 #     "connect_elasticsearch_send_custom_message_type": "policy_status",
 #     "connect_elasticsearch_send_custom_message_custom_field1": "C365 - CND - 30 Day Vuln Scan Compliance",
 #     "connect_elasticsearch_send_custom_message_custom_field2": "Non-Compliant",
-#     "connect_elasticsearch_send_custom_message_custom_field3": "",
-#     "connect_elasticsearch_send_custom_message_body": "",
+#     "connect_elasticsearch_send_custom_message_custom_field3": "null",
+#     "connect_elasticsearch_send_custom_message_body": "null",
+#     "connect_elasticsearch_send_custom_message_hostfields": "nessus_scan_status(nessus_scan_status)",
 
 #     "connect_elasticsearch_url": "https://elastic.davsol.net",
-#     "connect_elasticsearch_index": "forescout",
+#     "connect_elasticsearch_index": "forescout_test",
 #     "connect_elasticsearch_username": "elastic",
 #     "connect_elasticsearch_password": "elastic",
 # }
@@ -73,17 +76,31 @@ forescout_jwt_token = params["connect_authorization_token"]
 
 # Get Elasticsearch API Details (To send data to)
 elastic_url = params["connect_elasticsearch_url"]
-elastic_index = params["connect_elasticsearch_send_custom_message_index_override"] or params["connect_elasticsearch_index"]
+elastic_index = params["connect_elasticsearch_index"]
+if params["connect_elasticsearch_send_custom_message_index_override"] != "null":
+    elastic_index = params["connect_elasticsearch_send_custom_message_index_override"]
 elastic_username = params["connect_elasticsearch_username"]
 elastic_password = params["connect_elasticsearch_password"]
 
 # Get parameter details from action dialog
 host_ip = params["ip"] # Host IP address
-msg_type = params["connect_elasticsearch_send_custom_message_type"]
-field1 = params["connect_elasticsearch_send_custom_message_custom_field1"]
-field2 = params["connect_elasticsearch_send_custom_message_custom_field2"]
-field3 = params["connect_elasticsearch_send_custom_message_custom_field3"]
-body = params["connect_elasticsearch_send_custom_message_body"]
+specified_data = "" # comma seperated list of extra host attributes to send along
+if params["connect_elasticsearch_send_custom_message_hostfields"] != "null":
+    specified_data = params["connect_elasticsearch_send_custom_message_hostfields"]
+
+# Get fields to send
+msg_type = field1 = field2 = field3 = body = "" # Set all the fields to blank
+if params["connect_elasticsearch_send_custom_message_type"] != "null":
+    msg_type = params["connect_elasticsearch_send_custom_message_type"]
+if params["connect_elasticsearch_send_custom_message_custom_field1"] != "null":
+    field1 = params["connect_elasticsearch_send_custom_message_custom_field1"]
+if params["connect_elasticsearch_send_custom_message_custom_field2"] != "null":
+    field2 = params["connect_elasticsearch_send_custom_message_custom_field2"]
+if params["connect_elasticsearch_send_custom_message_custom_field3"] != "null":
+    field3 = params["connect_elasticsearch_send_custom_message_custom_field3"]
+if params["connect_elasticsearch_send_custom_message_body"] != "null":
+    body = params["connect_elasticsearch_send_custom_message_body"]
+
 host_data = {} # don't have host data yet
 
 # Create request to get host data from Forescout
@@ -102,17 +119,77 @@ try:
 
         # Process host data with respect to EyeExtend Connect Send Data action specification
         logging.debug("connect_elasticsearch_send_custom_message: Preparing elasticsearch payload")
+
+        # Calculate hostname
+        host_data["host"]["hostname"] = host_data["host"]["ip"]
+        try:
+            host_data["host"]["hostname"] = host_data["host"]["fields"]["dhcp_hostname"]["value"]
+        except KeyError:
+            pass
+        try:
+            host_data["host"]["hostname"] = host_data["host"]["fields"]["nbthost"]["value"]
+        except KeyError:
+            pass
+        try:
+            host_data["host"]["hostname"] = host_data["host"]["fields"]["hostname"]["value"]
+        except KeyError:
+            pass
+
         elastic_payload = {
             "time": datetime.now().isoformat(),
             "ip": host_data["host"]["ip"],
             "mac": host_data["host"]["mac"],
+            "hostname": host_data["host"]["hostname"],
             "id": host_data["host"]["id"],
             "msg_type": msg_type,
             "custom_field1": field1,
             "custom_field2": field2,
             "custom_field3": field3,
-            "body": body
+            "body": body,
         }
+
+        # check if any hostfields were specified to also include
+        if specified_data:
+            elastic_payload["fields"] = {}
+            specified_fields = specified_data.split(",") # split the stirng format at commas
+            # Take each field specification and get the data form the host_data
+            for field_token in specified_fields:
+                re_match = re.match("(?P<field_name>.*)\((?P<alias_name>.*)\)", field_token) # Regex to break up the format
+                field_name = re_match.group('field_name')
+                alias_name = re_match.group('alias_name')
+
+                # Check if there is a wildcard character in the field speccification
+                if '*' in field_name:
+                    # Make sure only 1 wildcard character entered
+                    if field_name.count("*") > 1 or alias_name.count("*") > 1:
+                        raise Exception("Only 1 wildcard (*) character allowed in a field or alias specification")
+                    elif alias_name.count("*") < 1:
+                        raise Exception("Wildcard (*) character not expressed in alias field -- must be provided to preserve uniqueness of findings in output.")
+                    else:
+                        # convert wildcard to regex and make a token for what the wildcard matches
+                        dynamic_match_re = field_name.replace("*", "(?P<token>.*)")
+                        # search through all keys looking for any matches
+                        for key in host_data["host"]["fields"].keys():
+                            match = re.match(dynamic_match_re, key)
+                            if match:
+                                elastic_payload["fields"][alias_name.replace("*", match.group("token"))] = host_data["host"]["fields"][key]
+                else:
+                    # Normal find key value and put in payload
+                    if field_name in host_data["host"]["fields"]:
+                        #if field name starts with script_result, it may be JSON data we can parse before sending over
+                        if "script_result" in field_name:
+                            try:
+                                #logging.debug("Trying parse script_result value as JSON: {},{}".format(field_name, alias_name))
+                                elastic_payload["fields"][alias_name] = {
+                                    "timestamp": host_data["host"]["fields"][field_name]["timestamp"],
+                                    "value": json.loads(host_data["host"]["fields"][field_name]["value"])
+                                }
+                                logging.debug("Parsed script_result value as JSON: {},{}".format(field_name, alias_name))
+                            except Exception as e:
+                                elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
+                                logging.debug("Unable to parse script_result value as JSON: {},{}".format(field_name, alias_name))
+                        else:
+                            elastic_payload["fields"][alias_name] = host_data["host"]["fields"][field_name]
 
         # Prepare API request to elastic
         logging.debug(json.dumps(elastic_payload))

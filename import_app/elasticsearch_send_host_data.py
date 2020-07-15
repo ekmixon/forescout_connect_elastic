@@ -24,10 +24,11 @@ from datetime import datetime
 #     "connect_elasticsearch_forescout_username": "demo",
 #     "connect_elasticsearch_forescout_password": "demo",
 #     "connect_elasticsearch_send_host_data_allfields": "false",
+#     "connect_elasticsearch_send_host_data_enrich_nessus": "true",
 #     "connect_elasticsearch_send_host_data_hostfields": "in-group(in-group),script_result.138eb8efdf5a14a4897bef3f75732d0d(C365softCerts),script_result.dd44b524158d83cf07b55e56280e0021(C365nonSmartCardEnabledUsers),nessus_last_scan(nessus_last_scan),nessus_scan_results(nessus_scan_results),scap::*::oval_check_result(scap::*::oval_check_result),hostname(hostname),nbthost(nbthost),segment_path(segment_path),online(online),nbtdomain(nbtdomain),dhcp_hostname(dhcp_hostname),user(user),va_netfunc(va_netfunc),nessus_scan_status(nessus_scan_status)",
 #     "connect_elasticsearch_url": "https://elastic.davsol.net",
 #     "connect_elasticsearch_index": "forescout",
-#     "connect_elasticsearch_send_host_data_index_override": "",
+#     "connect_elasticsearch_send_host_data_index_override": "test",
 #     "connect_elasticsearch_username": "elastic",
 #     "connect_elasticsearch_password": "elastic",
 # }
@@ -69,13 +70,16 @@ forescout_jwt_token = params["connect_authorization_token"]
 
 # Get Elasticsearch API Details (To send data to)
 elastic_url = params["connect_elasticsearch_url"]
-elastic_index = params["connect_elasticsearch_send_host_data_index_override"] or params["connect_elasticsearch_index"]
+elastic_index = params["connect_elasticsearch_index"]
+if params["connect_elasticsearch_send_host_data_index_override"] != "null":
+    elastic_index = params["connect_elasticsearch_send_host_data_index_override"]
 elastic_username = params["connect_elasticsearch_username"]
 elastic_password = params["connect_elasticsearch_password"]
 
 # Get parameter details from action dialog
 host_ip = params["ip"] # Host IP address
 send_all_data = params["connect_elasticsearch_send_host_data_allfields"] == "true" # If all data should be included from host
+enrich_nessus = params["connect_elasticsearch_send_host_data_enrich_nessus"] == "true" # If nessus_scan_results data is enriched with extra attributes (CAT)
 specified_data = params["connect_elasticsearch_send_host_data_hostfields"] # or specific parsed version
 host_data = {} # don't have host data yet
 
@@ -93,6 +97,33 @@ try:
         # Load response data
         host_data = json.loads(forescout_resp.read().decode('utf-8'))
 
+        # Enrich nessus data
+        if enrich_nessus and host_data["host"]["fields"]["nessus_scan_results"]:
+            for scan_result in host_data["host"]["fields"]["nessus_scan_results"]:
+                if "IAVA" in scan_result["value"]["Xref"] or "IAVB" in scan_result["value"]["Xref"] or "IAVM" in scan_result["value"]["Xref"] or scan_result["value"]["plugin_severity"] == "severity_Critical" or scan_result["value"]["plugin_severity"] == "severity_High":
+                    scan_result["value"]["cat"] = 1
+                elif scan_result["value"]["plugin_severity"] == "severity_Medium":
+                    scan_result["value"]["cat"] = 2
+                elif scan_result["value"]["plugin_severity"] == "severity_Low":
+                    scan_result["value"]["cat"] = 3
+                else:
+                    scan_result["value"]["cat"] = 0
+        
+        # Calculate hostname
+        host_data["host"]["hostname"] = host_data["host"]["ip"]
+        try:
+            host_data["host"]["hostname"] = host_data["host"]["fields"]["dhcp_hostname"]["value"]
+        except KeyError:
+            pass
+        try:
+            host_data["host"]["hostname"] = host_data["host"]["fields"]["nbthost"]["value"]
+        except KeyError:
+            pass
+        try:
+            host_data["host"]["hostname"] = host_data["host"]["fields"]["hostname"]["value"]
+        except KeyError:
+            pass
+
         # Process host data with respect to EyeExtend Connect Send Data action specification
         logging.debug("Preparing elasticsearch payload")
         elastic_payload = {}
@@ -105,6 +136,7 @@ try:
             elastic_payload["ip"] = host_data["host"]["ip"]
             elastic_payload["mac"] = host_data["host"]["mac"]
             elastic_payload["id"] = host_data["host"]["id"]
+            elastic_payload["hostname"] = host_data["host"]["hostname"]
             elastic_payload["fields"] = {}
 
             # Take user input and extract requested fields and alias name
