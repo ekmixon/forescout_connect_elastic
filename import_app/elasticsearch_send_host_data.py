@@ -30,6 +30,7 @@ from datetime import datetime
 #     "connect_elasticsearch_send_host_data_index_override": "test",
 #     "connect_elasticsearch_username": "elastic",
 #     "connect_elasticsearch_password": "elastic",
+#     "connect_elasticsearch_apikey": "true",
 # }
 
 # # Making an API call to get the Forescout JWT token
@@ -74,6 +75,7 @@ if params["connect_elasticsearch_send_host_data_index_override"] != "null":
     elastic_index = params["connect_elasticsearch_send_host_data_index_override"]
 elastic_username = params["connect_elasticsearch_username"]
 elastic_password = params["connect_elasticsearch_password"]
+elastic_apikey = params["connect_elasticsearch_apikey"] == "true"
 
 # Get parameter details from action dialog
 host_ip = params["ip"] # Host IP address
@@ -171,9 +173,10 @@ try:
         logging.debug(json.dumps(elastic_payload))
         credentials = ('%s:%s' % (elastic_username, elastic_password))
         encoded_credentials = base64.b64encode(credentials.encode('ascii'))
+
         elastic_headers = {
             "Content-Type": "application/json",
-            'Authorization': 'Basic %s' % encoded_credentials.decode("ascii")
+            'Authorization': '%s %s' % ("ApiKey" if elastic_apikey else "Basic", encoded_credentials.decode("ascii"))
         }
         elastic_request = urllib.request.Request(elastic_url + "/" + elastic_index + "/_doc/", headers=elastic_headers, data=bytes(json.dumps(elastic_payload), encoding="utf-8"))
 
