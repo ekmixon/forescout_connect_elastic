@@ -19,17 +19,17 @@ from datetime import datetime
 # ssl_context.check_hostname = False
 # ssl_context.verify_mode = ssl.CERT_NONE
 # params = {
-#     "connect_elasticsearch_forescout_url": "https://forescout.lab.davsol.net",
-#     "ip": "10.1.20.5",
-#     "connect_elasticsearch_forescout_username": "demo",
-#     "connect_elasticsearch_forescout_password": "demo",
-#     "connect_elasticsearch_send_host_data_allfields": "false",
+#     "connect_elasticsearch_forescout_url": "https://10.1.20.20",
+#     "ip": "10.1.40.130",
+#     "connect_elasticsearch_forescout_username": "elastic",
+#     "connect_elasticsearch_forescout_password": "elastic",
+#     "connect_elasticsearch_send_host_data_allfields": "true",
 #     "connect_elasticsearch_send_host_data_hostfields": "in-group(in-group),script_result.138eb8efdf5a14a4897bef3f75732d0d(C365softCerts),script_result.dd44b524158d83cf07b55e56280e0021(C365nonSmartCardEnabledUsers),nessus_last_scan(nessus_last_scan),nessus_scan_results(nessus_scan_results),scap::*::oval_check_result(scap::*::oval_check_result),hostname(hostname),nbthost(nbthost),segment_path(segment_path),online(online),nbtdomain(nbtdomain),dhcp_hostname(dhcp_hostname),user(user),va_netfunc(va_netfunc),nessus_scan_status(nessus_scan_status)",
-#     "connect_elasticsearch_url": "https://elastic.davsol.net",
-#     "connect_elasticsearch_index": "forescout",
+#     "connect_elasticsearch_url": "https://i-o-optimized-deployment-4d0f91.es.us-west1.gcp.cloud.es.io:9243",
+#     "connect_elasticsearch_index": "Test-1",
 #     "connect_elasticsearch_send_host_data_index_override": "test",
-#     "connect_elasticsearch_username": "elastic",
-#     "connect_elasticsearch_password": "elastic",
+#     "connect_elasticsearch_username": "O8PYvnoByecATw6zYW3N",
+#     "connect_elasticsearch_password": "8Lwx_PbpTzqF96xmL0BR4A",
 #     "connect_elasticsearch_apikey": "true",
 # }
 
