@@ -16,19 +16,25 @@ elastic_doc_id = params["cookie"]
 
 try:
     # Prepare API request to elastic
-    credentials = ('%s:%s' % (elastic_username, elastic_password))
+    credentials = f'{elastic_username}:{elastic_password}'
     encoded_credentials = base64.b64encode(credentials.encode('ascii'))
     elastic_headers = {
         "Content-Type": "application/json",
-        'Authorization': 'Basic %s' % encoded_credentials.decode("ascii")
+        'Authorization': f'Basic {encoded_credentials.decode("ascii")}',
     }
-    elastic_request = urllib.request.Request(elastic_url + "/" + elastic_index + "/_doc/" + elastic_doc_id, headers=elastic_headers, method='DELETE')
+
+    elastic_request = urllib.request.Request(
+        f"{elastic_url}/{elastic_index}/_doc/{elastic_doc_id}",
+        headers=elastic_headers,
+        method='DELETE',
+    )
+
 
     # Make API request to elasticsearch API to put document
     elastic_resp = urllib.request.urlopen(elastic_request, context=ssl_context) # To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
     elastic_resp_parse = json.loads(elastic_resp.read().decode('utf-8'))
     logging.debug(elastic_resp_parse)
-    
+
     # Check response from elasticsearch
     if "result" in elastic_resp_parse:
         logging.error("Failed to delete custom message in Elasticsearch!")

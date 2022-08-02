@@ -23,7 +23,12 @@ password = params["connect_elasticsearch_forescout_password"] # OIM Password
 # Making an API call to get the JWT token
 headers = {"Content-Type": "application/x-www-form-urlencoded"}
 data = {"username": username, "password": password}
-request = urllib.request.Request(url + "/api/login", headers=headers, data=bytes(urllib.parse.urlencode(data), encoding="utf-8"))
+request = urllib.request.Request(
+    f"{url}/api/login",
+    headers=headers,
+    data=bytes(urllib.parse.urlencode(data), encoding="utf-8"),
+)
+
 
 # To use the server validation feature, use the keyword 'ssl_context' in the http reqeust
 response = {} # respones to forecout EyeExtend Connect
